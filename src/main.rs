@@ -2,6 +2,8 @@ mod subscribe;
 mod subscribe_decline;
 mod node;
 mod peel;
+mod profile_request;
+mod profile_response;
 
 use node::Node;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};

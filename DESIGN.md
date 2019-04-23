@@ -47,7 +47,7 @@ Format: 0x08 [Request Token: U32LE] [Start Index: U32LE] [0 Padding]
 There should be as many 0-padding bytes as the sender hopes to receive from the profile string. This is to prevent a denial of service amplification, where a sender would forge the sender field on `Profile Request` packets to have larger `Profile Response` packets sent to the denial of service victim.
 
 ### Profile Response
-Format: 0x09 [Request Token: U32LE] [Start Index: U32LE] [Profile Substring]
+Format: 0x09 [Request Token: U32LE] [Profile Substring]
 
 ### Partner List Request
 
@@ -68,7 +68,7 @@ Format: 0x0A [Request Token: U32LE] [Start Index: U32LE] [0 Padding]
 
 The receiver of this message should note that the string it is receiving a substring of may not be the same string as it received a substring of earlier. Simply concatenating responses to a batch of requests will not necessarily create a coherent whole. To ensure that each element is intact, a receiver might only process elements that do not cross response boundaries, and might choose boundaries to avoid splitting elements.
 
-Format: 0x0A [Request Token: U32LE] [Start Index: U32LE] [Profile List Substring]
+Format: 0x0A [Request Token: U32LE] [Profile List Substring]
 
 # A note about unsubscribing
 

@@ -1,10 +1,12 @@
 use crate::subscribe::handle_subscribe;
 use crate::subscribe_decline::handle_subscribe_decline;
+use crate::profile_request::handle_profile_request;
 use std::net::SocketAddr;
 use std::time::Instant;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::collections::HashMap;
+use std::cmp::min;
 
 pub struct Node {
 
@@ -17,6 +19,13 @@ pub struct Node {
     /// The `Node` tracks partnering IDs that are used in any way (pending, future, established)
     /// so that it can avoid collisions.
     used_partnering_ids: HashSet<u32>,
+    
+    profile: Vec<u8>,
+    
+    /// List of partnerships in the format expected by other nodes
+    partner_list: Vec<u8>,
+    
+    
 }
 
 type Addressable = String;
@@ -45,6 +54,20 @@ fn packet_type_and_body(packet: &[u8]) -> Result<(u8, &[u8]), HandleError> {
     Ok((first[0], rest))
 }
 
+fn slice_of(source: &[u8], start: u32, len: usize) -> &[u8] {
+    let start_usize = start as usize;
+    if (start_usize as u32) != start {
+        return &source[0..0];
+    }
+    if start_usize > source.len() {
+        return &source[0..0];
+    }
+    
+    let end = start_usize.checked_add(len).unwrap_or(source.len());
+    
+    &source[start_usize..min(source.len(), end)]
+}
+
 
 impl Node {
     pub fn new() -> Node {
@@ -52,6 +75,8 @@ impl Node {
             pending_partnerships: HashMap::new(),
             future_partnership_proposals: BTreeMap::new(),
             used_partnering_ids: HashSet::new(),
+            profile: Vec::new(),
+            partner_list: Vec::new(),
         }
     }
 
@@ -105,10 +130,15 @@ impl Node {
         let handlers = [
             handle_subscribe,
             handle_subscribe_decline,
+            handle_profile_request,
         ];
         
         let handler = handlers.get(packet_type as usize).ok_or(HandleError::InvalidPacketType)?;
         
         handler(self, source, body)
+    }
+    
+    pub fn extract_profile_slice(&mut self, start: u32, len: usize) -> &[u8] {
+        slice_of(&self.profile, start, len)
     }
 }
