@@ -1,6 +1,7 @@
 use crate::subscribe::handle_subscribe;
 use crate::subscribe_decline::handle_subscribe_decline;
 use crate::profile_request::handle_profile_request;
+use crate::partner_list_request::handle_partner_list_request;
 use std::net::SocketAddr;
 use std::time::Instant;
 use std::collections::BTreeMap;
@@ -131,6 +132,7 @@ impl Node {
             handle_subscribe,
             handle_subscribe_decline,
             handle_profile_request,
+            handle_partner_list_request,
         ];
         
         let handler = handlers.get(packet_type as usize).ok_or(HandleError::InvalidPacketType)?;
@@ -140,5 +142,9 @@ impl Node {
     
     pub fn extract_profile_slice(&mut self, start: u32, len: usize) -> &[u8] {
         slice_of(&self.profile, start, len)
+    }
+    
+    pub fn extract_partner_list_slice(&mut self, start: u32, len: usize) -> &[u8] {
+        slice_of(&self.partner_list, start, len)
     }
 }

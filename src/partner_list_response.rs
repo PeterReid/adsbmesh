@@ -3,14 +3,14 @@ use crate::node::HandleError;
 use std::net::SocketAddr;
 use crate::peel::peel_u32;
 
-pub struct ProfileResponse<'a> {
+pub struct PartnerListResponse<'a> {
     pub token: u32,
     pub slice: &'a[u8],
 }
 
-impl<'a> ProfileResponse<'a> {
+impl<'a> PartnerListResponse<'a> {
     pub fn serialize(&self) -> Vec<u8> {
-        let capacity: usize = 5 + self.slice.len();
+        let capacity: usize = 10 + self.slice.len();
         let mut bs = Vec::with_capacity(capacity);
         
         bs.push(9);
@@ -22,11 +22,11 @@ impl<'a> ProfileResponse<'a> {
         bs
     }
     
-    fn deserialize(body: &[u8]) -> Result<ProfileResponse, HandleError> {
+    fn deserialize(body: &[u8]) -> Result<PartnerListResponse, HandleError> {
         let (token, body) = peel_u32(body)?;
         let slice = body;
         
-        Ok(ProfileResponse {
+        Ok(PartnerListResponse {
             token: token,
             slice: slice,
         })
