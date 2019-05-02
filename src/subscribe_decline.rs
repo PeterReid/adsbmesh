@@ -2,8 +2,7 @@ use crate::node::Node;
 use crate::node::HandleError;
 use std::net::SocketAddr;
 use crate::peel::{peel_u32, peel_end};
-use std::time::Duration;
-use std::time::Instant;
+use crate::node::PendingPartnershipResolution;
 
 pub struct SubscribeDecline {
     pub partnering_id: u32,
@@ -38,9 +37,7 @@ impl SubscribeDecline {
 
 pub fn handle_subscribe_decline(node: &mut Node, _source: &SocketAddr, body: &[u8]) -> Result<(), HandleError> {
     let message = SubscribeDecline::deserialize(body)?;
-    if let Some(declined) = node.remove_pending_partnership_proposal(message.partnering_id) {
-        let retry_time = Instant::now() + Duration::from_secs(message.retry_delay_seconds as u64);
-        node.add_future_partnership_proposal(retry_time, declined.address);
+    if let Some(declined) = node.remove_pending_partnership_proposal(message.partnering_id, PendingPartnershipResolution::Declined{retry_delay_seconds: message.retry_delay_seconds}) {
         Ok( () )
     } else {
         Err( HandleError::DeclinedSubscriptionDoesNotExist )

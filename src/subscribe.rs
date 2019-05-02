@@ -4,14 +4,23 @@ use crate::subscribe_decline::SubscribeDecline;
 use std::net::SocketAddr;
 use crate::peel::{peel_u32, peel_slice};
 
-struct Subscribe<'a> {
+pub struct Subscribe<'a> {
     partnering_id: u32,
     key: &'a [u8],
     contact_method: &'a [u8],
 }
 
+
 impl<'a> Subscribe<'a> {
-    fn deserialize(body: &[u8]) -> Result<Subscribe, HandleError> {
+    pub fn new(partnering_id: u32, key: &'a [u8; 32], contact_method: &'a [u8]) -> Subscribe<'a> {
+        Subscribe{
+            partnering_id: partnering_id,
+            key: &key[..],
+            contact_method: contact_method
+        }
+    }
+
+    pub fn deserialize(body: &[u8]) -> Result<Subscribe, HandleError> {
         let (partnering_id, body) = peel_u32(body)?;
         let (key, body) = peel_slice(body, 32)?;
         let contact_method = body;
@@ -21,6 +30,18 @@ impl<'a> Subscribe<'a> {
             key: key,
             contact_method: contact_method,
         })
+    }
+    
+    pub fn serialize(&self) -> Vec<u8> {
+        let capacity: usize = 1 + 4 + 32 + self.contact_method.len();
+        let mut bs = Vec::with_capacity(capacity);
+        
+        bs.push(1);
+        bs.extend_from_slice(&self.partnering_id.to_le_bytes()[..]);
+        bs.extend_from_slice(self.key);
+        bs.extend_from_slice(self.contact_method);
+        
+        bs
     }
 }
 
