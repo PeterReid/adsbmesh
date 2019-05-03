@@ -3,6 +3,8 @@ use crate::subscribe_decline::handle_subscribe_decline;
 use crate::subscribe_accept::handle_subscribe_accept;
 use crate::profile_request::handle_profile_request;
 use crate::partner_list_request::handle_partner_list_request;
+use crate::partner_list_request::PartnerListRequest;
+use crate::profile_request::ProfileRequest;
 use std::net::SocketAddr;
 use std::time::Instant;
 use std::collections::BTreeMap;
@@ -18,6 +20,16 @@ pub enum PendingPartnershipResolution {
     Declined{retry_delay_seconds: u32},
     Accepted(u32),
     Timeout,
+}
+
+pub struct DataRequestResolution {
+    bytes: Vec<u8>
+}
+
+#[derive(Eq, PartialEq)]
+pub enum DataRequestType {
+    Profile,
+    PartnerList,
 }
 
 
@@ -49,6 +61,8 @@ pub struct Node {
     
     /// If the node is instructed not to re-send a partnership proposal, it is stored here
     partnership_proposal_not_before: HashMap<Addressable, Instant>,
+    
+    pending_data_requests: HashMap<u32, (DataRequestType, Sender<DataRequestResolution>)>,
 }
 
 pub type Addressable = String;
@@ -103,6 +117,7 @@ impl Node {
             inactive_partnerships: HashMap::new(),
             contact_method: contact_method,
             partnership_proposal_not_before: HashMap::new(),
+            pending_data_requests: HashMap::new(),
         }
     }
 
@@ -118,6 +133,15 @@ impl Node {
         loop {
             let id = self.random_u32();
             if !self.used_partnering_ids.contains(&id) {
+                return id;
+            }
+        }
+    }
+    
+    fn unused_data_request_token(&mut self) -> u32 {
+        loop {
+            let id = self.random_u32();
+            if !self.pending_data_requests.contains_key(&id) {
                 return id;
             }
         }
@@ -209,5 +233,40 @@ impl Node {
     
     pub fn delay_partnership_proposal_until(&mut self, addressable: Addressable, when: Instant) {
         self.partnership_proposal_not_before.insert(addressable, when);
+    }
+    
+    pub fn send_partner_list_request(&mut self, destination: &SocketAddr, start_index: u32, len: usize) -> (u32, Receiver<DataRequestResolution>) {
+        let token = self.unused_data_request_token();
+        let (sender, receiver) = channel();
+        self.pending_data_requests.insert(token, (DataRequestType::PartnerList, sender));
+        self.send(destination, &PartnerListRequest{token: token, start_index: start_index, requested_len: len}.serialize());
+        (token, receiver)
+    }
+    
+    pub fn send_profile_request(&mut self, destination: &SocketAddr, start_index: u32, len: usize) -> (u32, Receiver<DataRequestResolution>) {
+        let token = self.unused_data_request_token();
+        let (sender, receiver) = channel();
+        self.pending_data_requests.insert(token, (DataRequestType::PartnerList, sender));
+        self.send(destination, &ProfileRequest{token: token, start_index: start_index, requested_len: len}.serialize());
+        (token, receiver)
+    }
+    
+    fn cancel_data_request(&mut self, token: u32, expected_kind: DataRequestType) {
+        if let Some((kind, _)) = self.pending_data_requests.get(&token) {
+            if *kind != expected_kind {
+                return;
+            }
+        } else {
+            return;
+        }
+        self.pending_data_requests.remove(&token);
+    }
+  
+    pub fn cancel_partner_list_request(&mut self, token: u32) {
+        self.cancel_data_request(token, DataRequestType::PartnerList)
+    }
+    
+    pub fn cancel_profile_request(&mut self, token: u32) {
+        self.cancel_data_request(token, DataRequestType::Profile)
     }
 }
