@@ -28,6 +28,11 @@ fn request_partnership(node: &Mutex<Node>, who: Addressable) -> bool {
             try_number += 1;
             let (potential_id, message, result_receiver) = node.lock().unwrap().create_partnership_proposal(who.clone());
             node.lock().unwrap().send(&socket_addr, &message);
+            
+            // We allow 10 seconds to receive a accept or decline before declaring a timeout. The 10 seconds is not just
+            // for network latency, but also to give the node some time to consider our request. It could (hypothetically)
+            // involve them looking in some online credibility database or something.
+            
             match result_receiver.recv_timeout(Duration::from_secs(10)) {
                 Ok(PendingPartnershipResolution::Accepted(confirmation_nonce)) => {
                     // The `Node` will have removed the partnership proposed and promoted it to a partnership.
