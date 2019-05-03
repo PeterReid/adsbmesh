@@ -187,6 +187,10 @@ impl Node {
     
     pub fn update_partner_list(&mut self) {
         let mut partner_list = Vec::new();
+        
+        partner_list.extend(self.contact_method.as_bytes());
+        partner_list.push(0);
+        
         for partner in self.active_partnerships.values() {
             partner_list.extend(partner.address.as_bytes());
             partner_list.push(0);

@@ -51,7 +51,7 @@ Format: 0x09 [Request Token: U32LE] [Profile Substring]
 
 ### Partner List Request
 
-A node maintains a string that represents its list of partners, with each partner formatted as 
+A node maintains a string that represents itself and then its list of partners, with each partner formatted as 
 
 [Port Hex Digit 1] [Port Hex Digit 2] [Port Hex Digit 3] [Port Hex Digit 4] [IP Address or hostname] 0x00
 
