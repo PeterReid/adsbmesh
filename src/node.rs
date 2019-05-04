@@ -15,6 +15,9 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::channel;
 use crate::subscribe::Subscribe;
+use rand::rngs::StdRng;
+use rand::FromEntropy;
+use rand::Rng;
 
 pub enum PendingPartnershipResolution {
     Declined{retry_delay_seconds: u32},
@@ -63,6 +66,8 @@ pub struct Node {
     partnership_proposal_not_before: HashMap<Addressable, Instant>,
     
     pending_data_requests: HashMap<u32, (DataRequestType, Sender<DataRequestResolution>)>,
+    
+    rng: StdRng,
 }
 
 pub type Addressable = String;
@@ -118,15 +123,16 @@ impl Node {
             contact_method: contact_method,
             partnership_proposal_not_before: HashMap::new(),
             pending_data_requests: HashMap::new(),
+            rng: StdRng::from_entropy(),
         }
     }
 
     fn random_key(&mut self) -> [u8; 32] {
-        [0u8; 32]
+        self.rng.gen()
     }
     
     fn random_u32(&mut self) -> u32 {
-        0
+        self.rng.gen()
     }
     
     fn unused_partnering_id(&mut self) -> u32 {

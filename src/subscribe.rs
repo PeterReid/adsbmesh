@@ -62,7 +62,5 @@ pub fn handle_subscribe(node: &mut Node, source: &SocketAddr, body: &[u8]) -> Re
         return Ok( () );
     }
     
-    
-    
     Ok( () )
 }
