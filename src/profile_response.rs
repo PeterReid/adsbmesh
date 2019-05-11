@@ -2,6 +2,7 @@ use crate::node::Node;
 use crate::node::HandleError;
 use std::net::SocketAddr;
 use crate::peel::peel_u32;
+use crate::node::DataRequestResolution;
 
 pub struct ProfileResponse<'a> {
     pub token: u32,
@@ -33,3 +34,10 @@ impl<'a> ProfileResponse<'a> {
     }
 }
 
+pub fn handle_profile_response(node: &mut Node, source: &SocketAddr, body: &[u8]) -> Result<(), HandleError> {
+    let profile_response = ProfileResponse::deserialize(body)?;
+    
+    node.resolve_profile_request(profile_response.token, DataRequestResolution{bytes: profile_response.slice.to_vec()});
+    
+    Ok( () )
+}

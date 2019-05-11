@@ -2,6 +2,8 @@ use crate::subscribe::handle_subscribe;
 use crate::subscribe_decline::handle_subscribe_decline;
 use crate::subscribe_accept::handle_subscribe_accept;
 use crate::profile_request::handle_profile_request;
+use crate::profile_response::handle_profile_response;
+use crate::partner_list_response::handle_partner_list_response;
 use crate::partner_list_request::handle_partner_list_request;
 use crate::partner_list_request::PartnerListRequest;
 use crate::profile_request::ProfileRequest;
@@ -26,7 +28,7 @@ pub enum PendingPartnershipResolution {
 }
 
 pub struct DataRequestResolution {
-    bytes: Vec<u8>
+    pub bytes: Vec<u8>
 }
 
 #[derive(Eq, PartialEq)]
@@ -215,7 +217,9 @@ impl Node {
             handle_subscribe_decline,
             handle_subscribe_accept,
             handle_profile_request,
+            handle_profile_response,
             handle_partner_list_request,
+            handle_partner_list_response,
         ];
         
         let handler = handlers.get(packet_type as usize).ok_or(HandleError::InvalidPacketType)?;
@@ -278,5 +282,24 @@ impl Node {
     
     pub fn cancel_profile_request(&mut self, token: u32) {
         self.cancel_data_request(token, DataRequestType::Profile)
+    }
+    
+    fn resolve_data_request(&mut self, token: u32, data: DataRequestResolution, kind: DataRequestType) {
+        if let Some((found_kind, sender)) = self.pending_data_requests.remove(&token) {
+            if kind != found_kind {
+                // Put it back! This should be rare.
+                self.pending_data_requests.insert(token, (found_kind, sender));
+            } else {
+                let _ = sender.send(data); // Failure here means that the listener gave up listening.
+            }
+        }
+    }
+    
+    pub fn resolve_profile_request(&mut self, token: u32, data: DataRequestResolution) {
+        self.resolve_data_request(token, data, DataRequestType::Profile)
+    }
+    
+    pub fn resolve_partner_list_request(&mut self, token: u32, data: DataRequestResolution) {
+        self.resolve_data_request(token, data, DataRequestType::PartnerList)
     }
 }
