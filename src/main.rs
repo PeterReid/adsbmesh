@@ -2,6 +2,7 @@ mod subscribe;
 mod subscribe_decline;
 mod subscribe_accept;
 mod subscribe_finalize;
+mod data;
 mod node;
 mod peel;
 mod profile_request;

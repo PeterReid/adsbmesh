@@ -7,6 +7,7 @@ use crate::partner_list_response::handle_partner_list_response;
 use crate::partner_list_request::handle_partner_list_request;
 use crate::partner_list_request::PartnerListRequest;
 use crate::profile_request::ProfileRequest;
+use crate::data::DataSerializer;
 use std::net::SocketAddr;
 use std::time::Instant;
 use std::collections::BTreeMap;
@@ -67,7 +68,13 @@ pub struct Node {
     /// If the node is instructed not to re-send a partnership proposal, it is stored here
     partnership_proposal_not_before: HashMap<Addressable, Instant>,
     
-    pending_data_requests: HashMap<u32, (DataRequestType, Sender<DataRequestResolution>)>,
+    
+    pending_profile_requests: HashMap<u32, Sender<DataRequestResolution>>,
+    
+    pending_partner_list_requests: HashMap<u32, Sender<DataRequestResolution>>,
+    
+    /// For broadcasts
+    sequence_number: u32,
     
     rng: StdRng,
 }
@@ -115,6 +122,8 @@ fn slice_of(source: &[u8], start: u32, len: usize) -> &[u8] {
 
 impl Node {
     pub fn new(contact_method: String) -> Node {
+        let mut rng = StdRng::from_entropy();
+        let sequence_number = rng.gen();
         Node {
             pending_partnerships: HashMap::new(),
             used_partnering_ids: HashSet::new(),
@@ -124,8 +133,10 @@ impl Node {
             inactive_partnerships: HashMap::new(),
             contact_method: contact_method,
             partnership_proposal_not_before: HashMap::new(),
-            pending_data_requests: HashMap::new(),
-            rng: StdRng::from_entropy(),
+            pending_profile_requests: HashMap::new(),
+            pending_partner_list_requests: HashMap::new(),
+            rng: rng,
+            sequence_number: sequence_number,
         }
     }
 
@@ -146,10 +157,18 @@ impl Node {
         }
     }
     
-    fn unused_data_request_token(&mut self) -> u32 {
+    fn unused_partner_list_request_token(&mut self) -> u32 {
         loop {
             let id = self.random_u32();
-            if !self.pending_data_requests.contains_key(&id) {
+            if !self.pending_partner_list_requests.contains_key(&id) {
+                return id;
+            }
+        }
+    }
+    fn unused_profile_request_token(&mut self) -> u32 {
+        loop {
+            let id = self.random_u32();
+            if !self.pending_profile_requests.contains_key(&id) {
                 return id;
             }
         }
@@ -250,56 +269,52 @@ impl Node {
     }
     
     pub fn send_partner_list_request(&mut self, destination: &SocketAddr, start_index: u32, len: usize) -> (u32, Receiver<DataRequestResolution>) {
-        let token = self.unused_data_request_token();
+        let token = self.unused_partner_list_request_token();
         let (sender, receiver) = channel();
-        self.pending_data_requests.insert(token, (DataRequestType::PartnerList, sender));
+        self.pending_partner_list_requests.insert(token, sender);
         self.send(destination, &PartnerListRequest{token: token, start_index: start_index, requested_len: len}.serialize());
         (token, receiver)
     }
     
     pub fn send_profile_request(&mut self, destination: &SocketAddr, start_index: u32, len: usize) -> (u32, Receiver<DataRequestResolution>) {
-        let token = self.unused_data_request_token();
+        let token = self.unused_profile_request_token();
         let (sender, receiver) = channel();
-        self.pending_data_requests.insert(token, (DataRequestType::PartnerList, sender));
+        self.pending_profile_requests.insert(token, sender);
         self.send(destination, &ProfileRequest{token: token, start_index: start_index, requested_len: len}.serialize());
         (token, receiver)
     }
     
-    fn cancel_data_request(&mut self, token: u32, expected_kind: DataRequestType) {
-        if let Some((kind, _)) = self.pending_data_requests.get(&token) {
-            if *kind != expected_kind {
-                return;
-            }
-        } else {
-            return;
-        }
-        self.pending_data_requests.remove(&token);
-    }
-  
     pub fn cancel_partner_list_request(&mut self, token: u32) {
-        self.cancel_data_request(token, DataRequestType::PartnerList)
+        self.pending_partner_list_requests.remove(&token);
     }
     
     pub fn cancel_profile_request(&mut self, token: u32) {
-        self.cancel_data_request(token, DataRequestType::Profile)
+        self.pending_profile_requests.remove(&token);
     }
     
-    fn resolve_data_request(&mut self, token: u32, data: DataRequestResolution, kind: DataRequestType) {
-        if let Some((found_kind, sender)) = self.pending_data_requests.remove(&token) {
-            if kind != found_kind {
-                // Put it back! This should be rare.
-                self.pending_data_requests.insert(token, (found_kind, sender));
-            } else {
-                let _ = sender.send(data); // Failure here means that the listener gave up listening.
-            }
+    fn resolve_data_request(token: u32, data: DataRequestResolution, requests: &mut HashMap<u32, Sender<DataRequestResolution>>) {
+        if let Some(sender) = requests.remove(&token) {
+            let _ = sender.send(data); // Failure here just means that the listener gave up listening.
         }
     }
     
     pub fn resolve_profile_request(&mut self, token: u32, data: DataRequestResolution) {
-        self.resolve_data_request(token, data, DataRequestType::Profile)
+        Node::resolve_data_request(token, data, &mut self.pending_profile_requests)
     }
     
     pub fn resolve_partner_list_request(&mut self, token: u32, data: DataRequestResolution) {
-        self.resolve_data_request(token, data, DataRequestType::PartnerList)
+        Node::resolve_data_request(token, data, &mut self.pending_partner_list_requests)
+    }
+    
+    pub fn broadcast(&mut self, data: &[u8]) {
+        let mut serializer = DataSerializer::new(self.sequence_number, data);
+        for active_partnership in self.active_partnerships.values() {
+            if let Some(ref resolved_address) = active_partnership.resolved_address {
+                let packet = serializer.serialize_for(active_partnership.id, &active_partnership.key);
+            
+                self.send(resolved_address, packet);
+            }
+        }
+        self.sequence_number = self.sequence_number.wrapping_add(1);
     }
 }

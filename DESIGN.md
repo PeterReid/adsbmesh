@@ -75,3 +75,6 @@ Format: 0x0A [Request Token: U32LE] [Profile List Substring]
 For simplicity and robustness, there is no explicit `Unsubscribe` message. A working partnership involves active participation from both sides, and if one side stops participating then the other side will as well after a time. In particular, a node can test for a "not participating" partner by noting that it is online and responsive to `Profile Request` messages but is not sending out any `Data` messages, even empty "keep alive" ones. The exact criteria for ending a subscription is a policy choice.
 
 
+# A thought about data signatures
+
+When a node broadcasts a data packet, it has to recompute the signature for each recipient, since each is part of a different partnership and has a different key. Using asymmetric encryption would make signing cheaper, since it could be done once and then used for all partnerships, but verification more expensive just because the algorithm is more expensive. With an asymmetric approach, a typical node would 1 slow sign + N slow verifications. With a symmetric approach, a typical node would do N fast signs and N fast verifications. If "fast" is more than twice as fast as "slow", then symmetric comes out ahead. It is also nice to favor the verifier to make a denial-of-service scenario harder.
